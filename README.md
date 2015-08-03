@@ -27,12 +27,12 @@ you simply use the label to describe your location.
 
 Reserved words are:
 
-*) start
-*) stop
-*) status
-*) restart
-*) new
-*) link
+* start
+* stop
+* status
+* restart
+* new
+* link
 
 A lazy way could be, you're at your friends residence, so you simply put his name, lets say ***Gregory*** as label.
 
@@ -59,7 +59,8 @@ Dependencies:
 -------------
 
 This tool requires these packages/programs:
-*)	wpa_supplicant
-*)	dhpcd
-*)	cifs-utils
-*)	[TUI](https://github.com/sri-arjuna/tui)
+
+*	wpa_supplicant
+*	dhpcd
+*	cifs-utils
+*	[TUI](https://github.com/sri-arjuna/tui)
