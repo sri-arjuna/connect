@@ -19,6 +19,24 @@ Where TASK currently is either **nas** or **wifi**.
 
 
 
+Installation:
+-------------
+
+Like for many others, it invokes **configure** in the project path:
+
+	./configure --prefix=/usr
+
+This will create 3 new scripts.
+* make-distclean, will remove the generated files
+* make-install, will install the project
+* make-uninstall, will remove the installed project
+
+So obviously, to install, you'll require to call:
+
+	su -c "./make-install"
+
+
+
 Labels, what for?
 -----------------
 
@@ -65,3 +83,4 @@ This tool requires these packages/programs:
 *	cifs-utils
 *	[TUI](https://github.com/sri-arjuna/tui)
 *	Uses/includes [YASSI](https://github.com/sri-arjuna/yassi) (./configure)
+
