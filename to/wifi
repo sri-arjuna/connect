@@ -1,4 +1,5 @@
-#!/usr/bin/env bash 
+#!/usr/bin/env bash
+#shopt -s expand_alias
 #set -x
 # ------------------------------------------------------------------------
 #
@@ -259,13 +260,6 @@
 		fi
 		return $ret
 	}
-	p() { 
-	# Pings google dns server
-	# 
-		ping -c 1 "8.8.8.8" 1>/dev/zero 2>/dev/zero && \
-			return 0 || \
-			return 1
-	}
 	wifi_kill_app() { # APPNAME
 	# Kills the given APPNAME with a loop
 	#
@@ -313,7 +307,7 @@
 
 		[Service]
 		Type=oneshot
-		ExecStart=/home/sea/prjs/connect/connect wifi ${KEY##*/}
+		ExecStart=$BINDIR/connect wifi ${KEY##*/}
 		RemainAfterExit=yes
 
 		[Install]
@@ -324,6 +318,13 @@
 		tui-yesno "Enable now?" && \
 			tui-asroot "systemctl enable wifi-${KEY##*/}" || \
 			tui-status 111 "To enable the service, call:" "systemctl enable wifi-${KEY##*/}"
+	}
+	p() { 
+	# Pings google dns server
+	# 
+		ping -c 1 "8.8.8.8" 1>/dev/zero 2>/dev/zero && \
+			return 0 || \
+			return 1
 	}
 	if [ -z "$WIFI" ]
 	then	wifi_select_device
@@ -397,7 +398,7 @@ There is NO WARRANTY, to the extent permitted by law.
 		else	wifi_start &
 			# If there is no ping from google dns, be idle and fill the bar...
 			while ! p && [ $TIMEOUT -gt 1 ]
-			do	tui-progress -b -m $MAX -c $(( $MAX - $TIMEOUT )) "Connecting to: $KEY..." >&2
+			do	tui-progress -b -m $MAX -c $(( $MAX - $TIMEOUT )) "Connecting to: ${KEY##*/}..." >&2
 				TIMEOUT=$(( $TIMEOUT - 1 ))
 				sleep 0.07
 			done

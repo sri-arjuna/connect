@@ -62,5 +62,4 @@ Usage: 		$ME [options] TASK [options] LABEL
 		-p "$ME_MENU" \
 		-T "$TITLE" \
 		-c "$DIR_CFG/connect.conf" \
-		-s "$DIR_CFG/includes" \
 		$MORE_OPTS "${@}"
