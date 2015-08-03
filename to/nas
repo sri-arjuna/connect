@@ -1,0 +1,253 @@
+#!/usr/bin/env bash
+#set -x
+# ------------------------------------------------------------------------
+#
+# Copyright (c) 2015.06.19 by Simon Arjuna Erat, erat.simon@gmail.com
+# All rights reserved.
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the $DEFAULT_LICENSE as published
+# by the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# $DEFAULT_LICENSE for more details.
+#
+# You should have received a copy of the $DEFAULT_LICENSE
+# along with this program.  If not, see $DEFAULT_LICENSE_URL
+#
+# ------------------------------------------------------------------------
+	source tuirc 2>/dev/zero 1>/dev/zero ; printf "\r"
+#
+#	Variables : Internals
+#
+	ME="${0##*/}"
+	ME_VER=0.1
+#
+#	Variables : Dirs
+#
+	DIR_LOG="${TUI_DIR_LOGS/s}/connect"
+	if tui-bol-root
+	then	# Its root
+		DIR_CFG=${DIR_CFG:-/etc/connect}
+		DIR_TMP="${TMPDIR:-/tmp}"
+	else	# Its a regular user
+		DIR_CFG=${DIR_CFG:-$HOME/.config/connect}
+		DIR_TMP="$TUI_DIR_TEMP"
+	fi
+	DIR_NAS="$DIR_CFG/nas"
+	tui-bol-dir "$DIR_NAS"
+	tui-bol-dir "$DIR_TMP"
+	tui-bol-dir "$DIR_LOG"
+#
+#	Variables : Files
+#
+	CFG="$DIR_CFG/connect.conf"
+	ERR="$DIR_LOG/$ME-errors.log"
+	FIFO="$DIR_TMP/$ME.ret"
+	LOG="$DIR_LOG/$ME.log"
+	PID="$DIR_TMP/$ME.pid"
+#
+#	Variables : Resets
+#
+	NAS=""
+	MP=""
+	IP=""
+	IP_DEF=""
+	SHARE=""
+	LABEL=""
+	DOM=""
+	DOM_DEF=""
+	USR=""
+	PW=""
+	CRED=""
+	CONF=""
+#
+#	Functions
+#
+	doLog() { # "MESSAGE"
+	# Prints the MESSGE to logger or logfile
+	#
+		if $useLogger 
+		then	logger "$1"
+		elif ! $useLogger && [ ! -z "$LOG" ]
+		then	$beVerbose && \\
+				tui-log -tv "$LOG" "$1" || \\
+				tui-log -t "$LOG" "$1"
+		else	tui-status 1 "Cannot log message\"$1\".." "No \$LOG ($LOG) (useLogger=$useLogger) defined!"
+		fi
+	}
+	list_devices() {
+	# List the devices
+	#
+		ip link|awk '/^[0-9]:/ {print $2}'|sed s,":",,g
+	}
+	list_LABEL() {
+	# List the devices
+	#
+		oPWD="$(pwd)"
+		cd "$DIR_NAS"
+		for f in *
+		do	[ -f "$f" ] && echo "$f"
+		done
+		cd "$oPWD"
+	}
+	list_CREDS() {
+	# List the devices
+	#
+		oPWD="$(pwd)"
+		cd "$DIR_NAS"
+		find ./ -type f -name *cred
+		cd "$oPWD"
+	}
+	
+	ip_this() {
+	#
+	#
+		t_ip="$(ip addr|grep inet|grep -ve " 127.0." -ve " ::1/" -ve tent)"
+		t_range_raw=$(echo "$t_ip"|awk '/inet / {print $2}')
+		t_range="${t_range_raw/\/*}"
+		echo "$t_range"
+	}
+	ip_suggest() {
+	#
+	#
+		t_range=$(ip_this)
+		echo "${t_range%.*}."
+	}
+	add_new() {
+	# Creates a new entry
+	#
+		tui-echo "You may pass just a single digit to complete the IP, or a regular valid IP adress."
+		# Lets check if its single digit or a valid ip
+		
+		while 	! p "$IP"
+		do	IP=$(tui-read "What is the IP/NAME of the device: ${IP_DEF}")
+			if ! echo "$IP" | $GREP -q "\."
+			then	IP="$IP_DEF$IP"
+			fi
+		done
+		
+		# Basic config / LABEL
+		subdir="$DIR_NAS/$IP"
+		tui-bol-dir "$subdir"
+		SHARE=$(tui-read "What is the sharename: $IP/")
+		LABEL=$(tui-read "What is the quick access (leave empty for: ${SHARE,,}):")
+		LABEL="${LABEL:-${SHARE,,}}"
+		# Write the conf file
+		CONF="$DIR_NAS/${LABEL}.conf"
+		>"$CONF"
+		tui-conf-set -v "$CONF" IP "$IP"
+		tui-conf-set -v "$CONF" SHARE "$SHARE"
+		tui-conf-set -v "$CONF" label "$LABEL"
+		
+		while [ -z "$MP" ]
+		do	MP=$(tui-read "Where to mount $IP/$SHARE?")
+			tui-bol-dir "$MP" && tui-conf-set "$CONF" MP "$MP"
+		done
+		
+		# Add which cred file
+		if [ -z "$(list_CREDS)" ]
+		then	TODO=add_cred
+		else	tui-echo "Which credfile to use?"
+			useCRED=$(tui-select New $(list_CREDS))
+			[ New = "$useCRED" ] && TODO=add_cred
+		fi
+		
+		if [ "add_cred" = "$TODO" ] 
+		then	add_cred "$1" && \
+				useCRED=$(tui-select $(list_CREDS)) || \
+				exit 1
+		fi
+		tui-conf-set "$CONF" CRED "${useCRED:0:2}"
+	}
+	add_cred() { # IP
+	#
+	#
+		[ -z "$1" ] && return 1
+		tui-echo "Select which share this credential file is for:"
+		this=$(tui-select -a $(list_LABEL))
+		CRED="$DIR_NAS/$1/${this/.conf}.cred"
+		
+		DOM=$(tui-read "What domain is it in ($DOM_DEF):")
+		DOM=${DOM:-$DOM_DEF}
+		
+		USR=$(tui-read "What is the remote user ($USER):")
+		USR=${USR:-$USER}
+		
+		PW=$(tui-read -p "What is the password:")
+		
+		
+		cat > "$CRED" <<-EOF
+		username=$USR
+		password=$PW
+		domain=$DOM
+		EOF
+		
+		tui-echo
+		tui-cat "$CRED"
+		tui-yesno "Are these values correct?" && \
+			chmod 400 "$CRED" || rm -f "$CRED"
+	}
+	p() { ping -c 1 "$1" 1>/dev/zero 2>/dev/zero ; }
+#
+#	Action & Display
+#
+	tui-title "$ME $ME_VER"
+	[ -f "$CFG" ] && source "$CFG"
+	if [ -z "$IP_DEF$DOM_DEF" ]
+	then	tui-yesno "Do you want to use \"$(ip_suggest)\" as default ip-prefix?" && \
+			IP_DEF=$(ip_suggest) || \
+			IP_DEF=$(tui-read "What is the default ip-prefix:")
+		tui-conf-set -v "$CFG" IP_DEF "$IP_DEF"
+		tui-yesno "Do you want to use \"${HOSTNAME/*.}\" as default domain?" && \
+			DOM_DEF=${HOSTNAME/*.} || \
+			DOM_DEF=$(tui-read "What is the default domainname:")
+		tui-conf-set -v "$CFG" DOM_DEF "$DOM_DEF"
+		## Default settings set, continue with first timeers
+		add_new
+	fi
+	
+	if [ -z "$1" ]
+	then	# nothing passed, connect to only found or list existing connections
+		found=($(list_LABEL))
+		if [ -z "$found" ]
+		then	add_new
+			found=($(cd "$DIR_NAS";ls))
+			LABEL=$(tui-select -a ${found[@]})
+		else	LABEL=$(tui-select -a ${found[@]})
+		fi
+	else	for arg in "${@}"
+		do	if [ -f "$DIR_NAME/$arg.conf" ]
+			then	LABEL="$arg" 
+				
+			else 	tui-printf -S $? "Configuration for \"$arg\" not found."
+				exit $?
+			fi
+		done
+	fi
+
+	if [ "$LABEL" = "${LABEL##*/}" ]
+	then	LABEL="$DIR_NAS/$LABEL"
+	fi
+	source "$LABEL"
+	if [ -z "$(echo $CRED)" ]
+	then	# No cred file defined for this share
+		add_cred "$IP"
+		CRED=$(tui-select $(list_CREDS))
+		[ ! -z "$CRED" ] && \
+			tui-conf-set -v "$LABEL" CRED "$CRED"
+	fi
+#
+#	Connect
+#
+	cmd="mount -t cifs \"//$IP/$SHARE\" \"$MP\" -o _netdev,rw,credentials=\"$DIR_NAS/$CRED\",sec=ntlmv2,fsc"
+	tui-echo "To mount \"$label\""
+	tui-asroot  "$cmd"
+	doLog "Starting: $cmd"
+	tui-status $? "Connected to \"$label\""
+	RET=$?
+	doLog "Executed with: \"$RET\" as exit code"
+	exit $RET
