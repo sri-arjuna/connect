@@ -64,3 +64,4 @@ This tool requires these packages/programs:
 *	dhpcd
 *	cifs-utils
 *	[TUI](https://github.com/sri-arjuna/tui)
+*	Uses/includes [YASSI](https://github.com/sri-arjuna/yassi) (./configure)
