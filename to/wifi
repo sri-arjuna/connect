@@ -170,14 +170,14 @@
 	# Writes the keyfile and sets chmod 600
 		[ -f "$KEY" ] && ( tui-yesno "${KEY##*/} exists, overwrite?" || exit 1 )
 		wpa_passphrase "$AP" "$PW" > "$KEY"
-		ret=$?
-		if tui-bol-root && tui-yesno "Add this entry to the default config as welll?"
+		ret="$?"
+		if $(tui-str-bol-conv -t $ret) && tui-bol-root && tui-yesno "Add this entry to the default config as welll?"
 		then	echo >> "/etc/wpa_supplicant/wpa_supplicant.conf"
 			cat "$KEY" >> "/etc/wpa_supplicant/wpa_supplicant.conf"
 		fi
 		# Make it 'protected' for regular users
 		chmod 600 "$KEY"
-		return $ret
+		return "$ret"
 	}
 	wifi_new() {
 	# Creates a new keyfile
@@ -376,7 +376,7 @@ There is NO WARRANTY, to the extent permitted by law.
 	case "$MODE" in
 	link)	tui-echo "This will link /home/$USER/.config/wifi to /root/.config/wifi."
 		tui-yesno "Continue?" || exit 0
-		[ -d "/root/.config/wifi" ] && mv "/root/.config/wifi" "/root/.config/wifi.old"
+		[ -d "/root/.config/wifi" ] && mv "/root/.config/wifi" "/root/.config/wifi.old.$(date +'%F_%T')"
 		ln -s "/home/$USER/.config/wifi" "/root/.config/wifi"
 		;;
 	new)	wifi_new
