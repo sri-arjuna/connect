@@ -1,7 +1,7 @@
-.TH "connect" "1" "2015-06-16" "sea"
+.TH "connect" "1" "2015-08-12" "sea"
 
 .SH NAME
-connect (0.1)
+connect (0.5)
 
 .SH SYNOPSIS
 \fBconnect\fP [options] nas|wifi [LABEL]
@@ -11,12 +11,91 @@ Example: connect wifi LABEL
 Where options are:
 .IP "\fB-h\fP"
 Helpscreen
-.IP "\fB-YX\fP"
-does that
+.IP "\fB-q\fP"
+Quiet mode, no header/title/endline.
 
 .SH DESCRIPTION
 .PP
-Connects to different devices.
+Connects to different devices, using a quick access label.
+
+It saves the required information within the user homedir, 
+so upon a fresh system installation (and assuming you have /home as a separate partition)
+you just keep entering the very same connect to connect to given spot or place.
+
+.SH SYNTAX
+.PP
+.IP "connect TASK LABEL"
+.PP
+.br
+Where TASK would be either:
+.B nas
+or
+.B wifi
+.br
+And LABEL would be any LABEL you defined upon creating its entry for either of them.
+.br
+
+Both share the reserved word: 
+.B new
+, which it also raises if no arguments are passed and no LABELS for given TASK were found.
+
+.B WIFI
+.RS 7
+.br
+Where options are:
+.IP "\fB-h\fP"
+Helpscreen
+.IP "\fB-q\fP"
+No output at all.
+.br
+There are some 'special' commands required to a convenient usage.
+.RE
+.br
+.RS 7
+.B restart
+.RS 7
+.br
+Kills any found dhclient and wpa_supplicant instance running.
+.br
+Sometimes, this might be required.
+.RE
+.RE
+.br
+.RS 7
+.B stop
+.RS 7
+.br
+Simply disconnect from current hotspot (AP)
+.RE
+.RE
+.br
+.RS 7
+.B status
+.RS 7
+.br
+Simply prints wether it is connected or not, and if it is, to which AP.
+.RE
+.RE
+.br
+.RS 7
+.B link
+.RS 7
+.br
+Requires you to start from your regular user terminal and then log in as root.
+.br
+Then command:
+.B connect wifi link
+.br
+.RE
+.RE
+.br
+.RS 7
+.B service LABEL
+.RS 7
+.br
+Writes a service file for systemd in the user configuration dir ($HOME/.config/connect), or to:
+.I /etc/systemd/system/wifi-<LABEL>.service
+if you're running as root.
 
 .SH LICENSE
 GNU General Public License (GPL)
