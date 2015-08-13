@@ -25,7 +25,7 @@
 #
 #	Variables
 #
-	APP_VERSION=0.3
+	APP_VERSION=0.4
 	ME="${0##*/}"
 	ME_DIR="${0/$ME}}"
 	ME_BASE="$DATADIR"

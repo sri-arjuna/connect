@@ -206,8 +206,8 @@
 		
 		# Password
 		tui-yesno "Show the password while typing?" && \
-			PW=$(tui-read "Please type the password:") || \
-			PW=$(tui-read -p "Please type the password:")
+			tui-read "Please type the password:"  > "$TUI_FILE_TEMP.pw" || \
+			tui-read -p "Please type the password:"  > "$TUI_FILE_TEMP.pw"
 		
 		# Create the keyfile
 		write_key

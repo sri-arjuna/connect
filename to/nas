@@ -24,7 +24,7 @@
 #	Variables : Internals
 #
 	ME="${0##*/}"
-	ME_VER=0.1
+	ME_VER=0.3
 #
 #	Variables : Dirs
 #
@@ -189,15 +189,15 @@
 		#	uid=$($AWK -F':' -v usr=$USR '$1 == usr {print $3}' /etc/passwd)
 
 			#echo "${uid:-99999}" ; exit 5
-			PW=$(tui-read -p "What is the (remote) password:")
-
-
+			tui-read -p "What is the (remote) password:" > "$TUI_FILE_TEMP.pw"
+			#PW=$()
+			
 			cat > "$CRED" <<-EOF
 			username=$USR
-			password=$PW
+			password=$(<"$TUI_FILE_TEMP.pw")
 			domain=$DOM
 			EOF
-
+			rm "$TUI_FILE_TEMP.pw"
 			tui-echo
 			tui-cat "$CRED"
 			chmod 400 "$CRED"
@@ -271,12 +271,30 @@
 #
 #	Connect
 #
-	cmd="mount -t cifs //$IP/$SHARE $MP -o _netdev,rw,credentials=$CRED,sec=ntlmv2,fsc"
-	tui-echo "To mount \"$label\""
-	tui-asroot  "$cmd"
+	cmd="mount -t cifs //$IP/$SHARE $MP -o _netdev,rw,credentials=$DIR_NAS/$CRED,sec=ntlmv2,fsc"
+	# Check if device is even up
+	! p "$IP"  && \
+		tui-printf -S 1 "Device is not up, please power it up!" && \
+		exit 1
+	if $GREP -q $MP /etc/mtab
+	then	tui-status 4 "\"${LABEL##*/}\" is already mounted at: $MP"
+		exit 0
+	fi
+	tui-echo "To mount \"$label\"" #, please provide $USER password:"
 	doLog "Starting: $cmd"
-	tui-status $? "Connected to \"$label\""
-	RET=$?
+#set -x
+	touch "$TUI_FILE_TEMP"
+	msg_prior="Please provide password for $USER:"
+	msg_prior="$msg_prior"
+	tui-printf "$msg_prior";printf "\033[$(( 6 + ${#msg_prior} ))G"
+	tui-asroot  "$cmd" #2>"$TUI_FILE_TEMP" 1>&2
+	tui-cat "$TUI_FILE_TEMP"
+	$GREP -q error "$TUI_FILE_TEMP" && \
+		RET=1 || RET=0
+	#RET=$?
+	tui-status $RET "Connected to \"$label\""
+	
+#set +x
 	doLog "Executed with: \"$RET\" as exit code"
 	
 #	set +x
