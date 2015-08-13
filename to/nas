@@ -258,7 +258,7 @@
 	then	LABEL="$DIR_NAS/$LABEL"
 	fi
 	
-	set -x
+#	set -x
 	
 	source "${LABEL}.conf"
 	if [ -z "$(echo ${CRED/\.\/})" ]
@@ -279,6 +279,6 @@
 	RET=$?
 	doLog "Executed with: \"$RET\" as exit code"
 	
-	set +x
+#	set +x
 	
 	exit $RET
