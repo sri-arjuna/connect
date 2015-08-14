@@ -169,7 +169,7 @@
 	# Expects AP, PW and KEY to be set.
 	# Writes the keyfile and sets chmod 600
 		[ -f "$KEY" ] && ( tui-yesno "${KEY##*/} exists, overwrite?" || exit 1 )
-		wpa_passphrase "$AP" "$(<"$TUI_FILE_TEMP.pw")" > "$KEY"
+		wpa_passphrase "$AP" "$(<$TUI_FILE_TEMP.pw)" > "$KEY"
 		ret="$?"
 		rm "$TUI_FILE_TEMP.pw"
 		if $(tui-str-bol-conv -t $ret) && tui-bol-root && tui-yesno "Add this entry to the default config as welll?"
