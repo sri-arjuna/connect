@@ -98,7 +98,7 @@
 		then	$beVerbose && \\
 				tui-log -tv "$LOG" "$1" || \\
 				tui-log -t "$LOG" "$1"
-		else	tui-status 1 "Cannot log message\"$1\".." "No \$LOG ($LOG) (useLogger=$useLogger) defined!"
+		else	tui-status 1 "Cannot log message\"$1\".." "No \$LOG ($LOG) (useLogger=$useLogger) defined!" >&2
 		fi
 	}
 	list_ap() {
@@ -218,7 +218,7 @@
 	#
 		tui-echo "Please select your wifi device:"
 		WIFI=$(tui-select -a $(list_devices))
-		tui-status $? "Selected:" "$WIFI"
+		tui-status $? "Selected:" "$WIFI"  >&2
 		tui-conf-set "$CFG" WIFI "$WIFI"
 		tui-echo
 	}
@@ -257,7 +257,7 @@
 			
 		if ${beQuiet:-false}
 		then	echo "$WIFI ; $ret ; $AP" >&2
-		else	tui-status $(( 10 + $ret )) "$WIFI connected to:" "$AP" >&1
+		else	tui-status $(( 10 + $ret )) "$WIFI connected to:" "$AP" >&2
 		fi
 		return $ret
 	}
@@ -283,7 +283,7 @@
 			for tp in $p
 			do	for n in 2 3 9;do
 					kill -$n $tp 2>/dev/zero
-					tui-status $? "Killed -$n $tp"
+					tui-status $? "Killed -$n $tp"  >&2
 				done
 			done
 		fi
@@ -305,20 +305,27 @@
 		cat > $Servy <<-SERVICE
 		[Unit]
 		Description=Wifi-${KEY##*/}
-
+		Documentation=https://github.com/sri-arjuna/connect/blob/master/README.md
+		After=local-fs.target
+		#After=home.mount
+		#RequiresMountsFor=/home/
+		
+		
 		[Service]
 		Type=oneshot
-		ExecStart=$BINDIR/connect wifi ${KEY##*/}
 		RemainAfterExit=yes
+		ExecStart=$BINDIR/connect wifi ${KEY##*/}
+		ExecStop=$BINDIR/connect wifi restart
 
 		[Install]
 		WantedBy=multi-user.target
-		After=home.mount
+		
 		SERVICE
-		tui-status $? "Written: $Servy"
+		
+		tui-status $? "Written: $Servy"  >&2
 		tui-yesno "Enable now?" && \
 			tui-asroot "systemctl enable wifi-${KEY##*/}" || \
-			tui-status 111 "To enable the service, call:" "systemctl enable wifi-${KEY##*/}"
+			tui-status 111 "To enable the service, call:" "systemctl enable wifi-${KEY##*/}"  >&2
 	}
 	p() { 
 	# Pings google dns server
@@ -385,7 +392,7 @@ There is NO WARRANTY, to the extent permitted by law.
 		# Connect now?
 		if tui-yesno "Connect now to ${lbl:-$AP}?"
 		then	wifi_start
-			tui-status $? "Connected to ${lbl:-$AP}"
+			tui-status $? "Connected to ${lbl:-$AP}"  >&2
 		fi
 		exit $ret
 		;;
