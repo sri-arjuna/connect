@@ -1,0 +1,138 @@
+#!/usr/bin/env bash
+# ------------------------------------------------------------------------
+#
+# Copyright (c) 2015 by Simon Arjuna Erat, erat.simon@gmail.com
+# All rights reserved.
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the $DEFAULT_LICENSE as published
+# by the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# $DEFAULT_LICENSE for more details.
+#
+# You should have received a copy of the $DEFAULT_LICENSE
+# along with this program.  If not, see $DEFAULT_LICENSE_URL
+#
+# ------------------------------------------------------------------------
+	source tuirc 2>/dev/zero 1>/dev/zero ; printf "\r"
+	HOME="${HOME:-$(eval echo ~$USER)}"
+#
+#	Variables : Internals
+#
+	ME="${0##*/}"
+	ME_VER=0.3
+# 	script_created:	2015.12.04
+# 	script_changed:	2015.12.07
+#
+#	Variables : Dirs
+#
+	
+	if tui-bol-root
+	then	# Its root
+		DIR_CFG=${DIR_CFG:-/etc/connect}
+		DIR_TMP="${TMPDIR:-/tmp}"
+		DIR_LOG="${TUI_DIR_LOG}/connect"
+	else	# Its a regular user
+		DIR_CFG=${DIR_CFG:-$HOME/.config/connect}
+		DIR_TMP="$TUI_DIR_TEMP"
+		DIR_LOG="${TUI_DIR_USER_LOG}/connect"
+	fi
+	tui-bol-dir "$DIR_TMP"
+	tui-bol-dir "$DIR_LOG"
+#
+#	Variables : Files
+#
+	CFG="$DIR_CFG/connect.conf"
+	ERR="$DIR_LOG/$ME-errors.log"
+	FIFO="$DIR_TMP/$ME.ret"
+	LOG="$DIR_LOG/$ME.log"
+	PID="$DIR_TMP/$ME.pid"
+	TMP="$DIR_TMP/$ME.tmp"
+#
+#	Variables : Defaults
+#
+	beVerbose=false
+	useLogger=true
+	beQuiet=${beQuiet:-false}
+	C=0
+	MODE=""
+	MAX=250
+	TIMEOUT=$MAX
+#
+#	Functions
+#
+	copy_files() { #
+	# Copy configuration from user to system, or from system to user
+	# -- THIS IS NOT USED --
+		set -x
+		# The source path from where to copy
+		S=$HOME/.config/connect
+		
+		# Get the target path
+		case "${UID:-0}" in
+		0)	# If root user has no /root, use the sysconf dir
+			[ -d $S ] || S=/etc/connect
+			
+			tui-printline -E "Please select the user to which you want to copy the settings."
+			for H in /home /Users;do
+				[ -d $H ] && \
+					usr=$(tui-select \
+						-a $($LS ${HOME}/.. | \
+						$GREP -v lost+found)
+					) && \
+					break
+			done
+			T=$H/$usr/.config/connect
+			;;
+		*)	# 'regular' user / everyone else
+			if [ -d /root ]
+			then	T=/root/.config/connect
+			else	T=/etc/connect
+			fi
+			;;
+		esac
+		
+		[ 0 -eq ${UID:-0} ] && \ll
+			tui-cp  $S/* $T || \
+			tui-asroot "tui-cp -f $S/* $T"
+		set +x
+	}
+#
+#	Action
+#
+	tui-title "Copying Configuration"
+#
+#	Display
+#
+	tui-echo "What do you want to do?"
+	A="Copy from root"
+	B="Copy to root"
+	
+	MODE=$(tui-select "$A" "$B")
+	
+	for H in /home /Users /users;do
+		[ -d "$H" ] && \
+			users=$(ls --ignore=lost+found "$H") && \
+			break
+	done
+	tui-print -E "Which user is involved?"
+	usr=$(tui-select -a $users)
+	tui-status $? "Selected:" "$usr"
+	
+	case "$MODE" in
+	"$A")	SRC=/root
+		DST=$H/$usr
+		;;
+	"$B")	SRC=$H/$usr
+		DST=/root
+		;;
+	esac
+
+	t=.config/connect
+	
+	tui-cp "$SRC/$t" "$DST/.config"
+	

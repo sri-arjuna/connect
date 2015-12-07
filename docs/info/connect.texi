@@ -1,0 +1,242 @@
+\input texinfo   @c -*-texinfo-*-
+@comment %**start of header
+@setfilename connect.info
+@include _version.texi
+@settitle Manual 1.0 for Connect
+@syncodeindex pg cp
+@comment %**end of header
+@copying
+This manual is for Connect (version @value{VERSION}, @value{UPDATED})
+Copyright @copyright{} 2011-2015 Simon Arjuna Erat
+Connect is licensed as GPLv3.
+Connect is licensed as GPLv3.
+The manual is licensed as GFDL.
+
+@quotation
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.  A copy of the license is included in the section entitled
+``GNU Free Documentation License''.
+@end quotation
+@end copying
+
+@documentdescription
+gnu,linux,script,bash,ash,csh,zsh,connect,cli
+@end documentdescription
+
+@comment ## --------------------------------------------------------------- ##
+
+@titlepage
+@title Table of Content
+@subtitle for version @value{VERSION}, @value{UPDATED}
+@author Simon Arjuna Erat (@email{erat.simon@@gmail.com})
+@page
+@vskip 0pt plus 1filll
+@insertcopying
+@end titlepage
+
+
+@comment ## --------------------------------------------------------------- ##
+
+@ifnottex
+@node Top
+@top Connect
+This manual is for Connect (version @value{VERSION}, @value{UPDATED}).
+@end ifnottex
+
+Connect is a 
+
+@menu
+* Introduction to Connect :: 
+* Installation :: Optimal installation & de-installation
+* Configuration :: 
+* Usage :: Some basic description
+@c * Display Commands :: The definition of Interface
+@c * Interactive Commands :: Convenience for author and user
+@c * Advanced Commands :: Tools for the crazy lazy geeks with great ideas
+* Appendix :: 
+@end menu
+@contents
+
+@comment ## --------------------------------------------------------------- ##
+
+@node Introduction to Connect
+@chapter Introduction to Connect
+@i {Connect to devices}
+
+@section Idea
+I've always wanted to be able to connect to device the simple way.
+And not have to redo that every time i do a fresh installation on '/'.
+
+Also i wanted to have a common syntax and simplified the adding of new entries as easy as possible.
+
+As of now, it is aimed for single-user systems.
+
+Later updates eventually will support multi-user systems.
+
+
+@comment ## --------------------------------------------------------------- ##
+
+
+@node Installation
+@chapter Installation
+@section Getting the code
+It is recommended by FHS (http://www.pathname.com/fhs/pub/fhs-2.3.html#USRSRCSOURCECODE) to save source code in /usr/src.
+@example
+    su
+    cd /usr/src
+    git clone https://github.com/sri-arjuna/connect.git
+    cd connect
+@end example
+
+@section A basic installation procedure looks like:
+@example
+    ./configure --prefix=/
+    ./make
+    ./make-install
+@end example
+
+By default this will install Connect using the default prefix /usr/local, so the binaries will be available in PREFIX/bin.
+
+@section Uninstall
+@example
+    su
+    cd /usr/src/connect
+    ./make-uninstall
+@end example
+
+
+If you prefer Makefiles, you may add/change @b {doMakefile=true} within @i {configure.cfg} 
+and rerun ./configure or simply pass @u {./configure --write-makefile} to get:
+
+@section A basic installation procedure looks like:
+@example
+    ./configure --write-makefile --prefix=/
+    make
+    make install
+@end example
+
+By default this will install Connect using the default prefix /usr/local, so the binaries will be available in PREFIX/bin.
+
+@section Uninstall
+@example
+    su
+    cd /usr/src/connect
+    make uninstall
+@end example
+
+
+@comment ## --------------------------------------------------------------- ##
+
+
+@node Configuration
+@chapter Configuration
+As of now @b {Connect} is aimed at single-user systems, which allows to 'symlink' and/or 'copy'  
+the user configuration to the root account or vice-versa.
+
+Due to this situation, and the default setting that both, 'mount' and  requires root acces
+
+
+Each of the invoked commands will perform the regard task.
+* If using for the first time, it is recomended to link it.
+* If used later, and no more changes will happen, it is recomeded to copy the data.
+* If you have /home (encrypted) seperatly of / (which is recomended),
+you should set up everything as root user, then copy the configuration to your user account.
+@example
+    connect cfg link
+    connect cfg copy
+@end example
+
+To actually change settings, a new command is in progress.
+It'll be available at:
+
+@example
+    connect cfg edit
+@end example
+
+
+
+@comment ## --------------------------------------------------------------- ##
+
+
+@node Usage
+@chapter Usage
+This chapter talks about the basic syntax.
+
+
+@section Task-Modules
+Each of the task modules must apply these commands:
+
+* new
+* auto
+* lease
+* status
+
+
+@subsection Command: new
+Will start a wizzard to add a new LABEL to the specific TASK.
+
+@subsection Command: 
+
+@subsection Command: lease
+If passed with LABEL, it will lease that connection.
+If passed without LABEL, it will lease all open connections.
+
+@subsection Command: status
+Will display the status of LABEL if passed, or all labels of TASK otherwise.
+
+
+
+
+
+@example
+    connect wifi new
+@end example
+
+@section Usage-Section
+Desc
+
+
+@subsection Usage-Section-Subsection
+Like its regular counterpart @b {echo}, but provides the same output alignment as connect-printline.
+
+
+
+@example
+	
+@end example
+
+
+
+@node Appendix
+@chapter Appendix
+
+@section History of Connect
+@subsection Original Origin
+
+
+
+
+@subsection About the Author
+Simon Arjuna Erat has first met a computer at the age of 8, at his dad's cellar office with a Commodore64.
+The first i remember about that computer is, that my dad was just changing the tape-drive with a 5.25" soft-floppy.
+
+Allthough i was very much into optimizing my system by tweaking the autoexec.bat and config.sys,
+i usualy just did it to gain more free memory over the 512k 'barrier', to play the games more fluently, 
+as they required an incredible high amount of RAM... up to 8MB!
+
+Later in 1995, i've had my hands on Slackware 3.0 and RedHat 2 or 3 (not RHEL, before Fedora).
+
+Between 1997 and 2001 i was self-employed PC-Supporter helping private people as well as small- & medium companies in and around my town.
+In  between there was some army services, and afterwards i've raised a security company with some friends, which went well until 2004,
+where i went back to my origins, and created homepages and flyers for several bars, clubs, discotheques and other etablissements.
+
+Then finaly in 2011, i've had enough of Windows and 'joined the GNU/Linux Community'.
+Providing my part to it, by realizing/writing an idea i've had almost 20 years ago... Connect for scripts.
+
+@subsection Manual License
+@include fdl.texi
+
+@bye

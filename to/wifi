@@ -3,7 +3,7 @@
 #set -x
 # ------------------------------------------------------------------------
 #
-# Copyright (c) 2015.06.19 by Simon Arjuna Erat, erat.simon@gmail.com
+# Copyright (c) 2015 by Simon Arjuna Erat, erat.simon@gmail.com
 # All rights reserved.
 #
 # This program is free software: you can redistribute it and/or modify it
@@ -21,22 +21,27 @@
 #
 # ------------------------------------------------------------------------
 	source tuirc 2>/dev/zero 1>/dev/zero ; printf "\r"
+	HOME="${HOME:-$(eval echo ~$USER)}"
 #
 #	Variables : Internals
 #
 	ME="${0##*/}"
-	ME_VER=0.3
+	ME_VER=0.5
+# 	script_created:	2015.06.19
+# 	script_changed:	2015.12.04
 #
 #	Variables : Dirs
 #
-	DIR_LOG="${TUI_DIR_LOGS/s}/connect"
+	
 	if tui-bol-root
 	then	# Its root
 		DIR_CFG=${DIR_CFG:-/etc/connect}
 		DIR_TMP="${TMPDIR:-/tmp}"
+		DIR_LOG="${TUI_DIR_LOG}/connect"
 	else	# Its a regular user
 		DIR_CFG=${DIR_CFG:-$HOME/.config/connect}
 		DIR_TMP="$TUI_DIR_TEMP"
+		DIR_LOG="${TUI_DIR_USER_LOG}/connect"
 	fi
 	DIR_WIFI="$DIR_CFG/wifi"
 	tui-bol-dir "$DIR_WIFI"
@@ -54,11 +59,11 @@
 #
 #	Variables : Defaults
 #
-	beQuiet=${beQuiet:-false}
 	beVerbose=false
+	useLogger=true
+	beQuiet=${beQuiet:-false}
 	C=0
 	MODE="start"
-	useLogger=true
 	MAX=250
 	TIMEOUT=$MAX
 #
@@ -279,7 +284,7 @@
 		
 		if [ $cancel_on -lt 2 ]
 		then	# Keep killing it...
-			p=$(ps -ax | $GREP -v $GREP | awk -v app="$app" '/app/ {print $1}')
+			p=$(ps -ax | $GREP -v $GREP | $AWK -v app="$app" '/app/ {print $1}')
 			for tp in $p
 			do	for n in 2 3 9;do
 					kill -$n $tp 2>/dev/zero
@@ -296,7 +301,7 @@
 		do	wifi_kill_app $task
 		done
 		wifi_set_up
-		ps -ax | $GREP -e dhcpcd -e wpa -e wifi | $GREP -ve restart -ve iwl
+		#ps -ax | $GREP -e dhcpcd -e wpa -e wifi | $GREP -ve restart -ve iwl
 	}
 	write_service() { 
 	#
@@ -315,7 +320,7 @@
 		Type=oneshot
 		RemainAfterExit=yes
 		ExecStart=$BINDIR/connect wifi ${KEY##*/}
-		ExecStop=$BINDIR/connect wifi restart
+		ExecStop=$BINDIR/connect wifi halt
 
 		[Install]
 		WantedBy=multi-user.target
@@ -326,6 +331,42 @@
 		tui-yesno "Enable now?" && \
 			tui-asroot "systemctl enable wifi-${KEY##*/}" || \
 			tui-status 111 "To enable the service, call:" "systemctl enable wifi-${KEY##*/}"  >&2
+	}
+	copy_files() { #
+	# Copy configuration from user to system, or from system to user
+	#
+		set -x
+		# The source path from where to copy
+		S=$HOME/.config/connect
+		
+		# Get the target path
+		case "${UID:-0}" in
+		0)	# If root user has no /root, use the sysconf dir
+			[ -d $S ] || S=/etc/connect
+			
+			tui-printline -E "Please select the user to which you want to copy the settings."
+			for H in /home /Users;do
+				[ -d $H ] && \
+					usr=$(tui-select \
+						-a $($LS ${HOME}/.. | \
+						$GREP -v lost+found)
+					) && \
+					break
+			done
+			T=$H/$usr/.config/connect
+			;;
+		*)	# 'regular' user / everyone else
+			if [ -d /root ]
+			then	T=/root/.config/connect
+			else	T=/etc/connect
+			fi
+			;;
+		esac
+		
+		[ 0 -eq ${UID:-0} ] && \
+			tui-cp  $S/* $T || \
+			tui-asroot "tui-cp -f $S/* $T"
+		set +x
 	}
 	p() { 
 	# Pings google dns server
@@ -342,7 +383,7 @@
 #
 	case "${1,,}" in
 	"-h"|"--help")
-		echo "Usage:	connect [-q] wifi [-q] LABEL|stop|status|restart"
+		echo "Usage:	connect [-q] wifi [-q] [copy|serv [LABEL]] | LABEL|halt|status"
 		exit 99
 		;;
 	"--version")
@@ -360,7 +401,7 @@ There is NO WARRANTY, to the extent permitted by law.
 		stop|status) MODE="$1"	;;
 		esac
 		;;
-	""|new|stop|status|restart|link)
+	""|new|halt|status|link|serv|copy)
 		MODE="${1:-start}"
 		shift
 		[ -z "${MODE/start}" ] && set $WIFI_LAST
@@ -382,10 +423,18 @@ There is NO WARRANTY, to the extent permitted by law.
 	[ start = "$1" ] && p && MODE=skip
 	#[ last = "$1" ] && p && MODE=skip
 	case "$MODE" in
-	link)	tui-echo "This will link /home/$USER/.config/wifi to /root/.config/wifi."
+	link)	tui-echo "This will link /home/$USER/.config/connect to /root/.config/connect."
 		tui-yesno "Continue?" || exit 0
-		[ -d "/root/.config/wifi" ] && mv "/root/.config/wifi" "/root/.config/wifi.old.$(date +'%F_%T')"
-		ln -s "/home/$USER/.config/wifi" "/root/.config/wifi"
+		[ -d "/root/.config/connect" ] && mv "/root/.config/connect" "/root/.config/connect.old.$(date +'%F_%T')"
+		ln -s "/home/$USER/.config/connect" "/root/.config/connect"
+		;;
+	copy)	#S=/home/$USER/.config/connect/wifi
+		#T=/root/.config/connect/wifi
+		#tui-echo "This will copy $S/* to $T."
+		#tui-yesno "Continue?" || exit 0
+		#[ -L "$T" ] && rm -f "$T" && mkdir "$T"
+		#cp -ar $S/* $T
+		copy_files
 		;;
 	new)	wifi_new
 		ret=$?
@@ -414,12 +463,20 @@ There is NO WARRANTY, to the extent permitted by law.
 			RET="$?"
 		fi
 		;;
-	restart)
+	halt)
 		wifi_restart
 		RET=$?
 		;;
 	stop)	wifi_stop
 		RET=$?
+		;;
+	serv)	#echo "$1 :: $2"
+		[ -z "$1" ] && \
+			tui-printf -S 1 "Must provide a LABEL!" && \
+			exit 1
+		KEY="$1"
+		write_service "$KEY"
+		exit $?
 		;;
 	status)	wifi_status
 		RET=$?
