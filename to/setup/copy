@@ -18,50 +18,29 @@
 # along with this program.  If not, see $DEFAULT_LICENSE_URL
 #
 # ------------------------------------------------------------------------
-	source tuirc 2>/dev/zero 1>/dev/zero ; printf "\r"
-	HOME="${HOME:-$(eval echo ~$USER)}"
+#
+# 	script_created:	2015.12.04
+# 	script_changed:	2015.12.29
 #
 #	Variables : Internals
 #
+	source tuirc
 	ME="${0##*/}"
-	ME_VER=0.3
-# 	script_created:	2015.12.04
-# 	script_changed:	2015.12.07
+	ME_VER=0.4
 #
-#	Variables : Dirs
-#
-	
-	if tui-bol-root
-	then	# Its root
-		DIR_CFG=${DIR_CFG:-/etc/connect}
-		DIR_TMP="${TMPDIR:-/tmp}"
-		DIR_LOG="${TUI_DIR_LOG}/connect"
-	else	# Its a regular user
-		DIR_CFG=${DIR_CFG:-$HOME/.config/connect}
-		DIR_TMP="$TUI_DIR_TEMP"
-		DIR_LOG="${TUI_DIR_USER_LOG}/connect"
-	fi
-	tui-bol-dir "$DIR_TMP"
-	tui-bol-dir "$DIR_LOG"
-#
-#	Variables : Files
-#
+#	Variables : Files & Folders
+#	
+	DIR_CFG="$HOME/.config/connect"
+	TMP="$TUI_FILE_TEMP"
+	# Files
 	CFG="$DIR_CFG/connect.conf"
-	ERR="$DIR_LOG/$ME-errors.log"
-	FIFO="$DIR_TMP/$ME.ret"
-	LOG="$DIR_LOG/$ME.log"
-	PID="$DIR_TMP/$ME.pid"
-	TMP="$DIR_TMP/$ME.tmp"
-#
-#	Variables : Defaults
-#
-	beVerbose=false
-	useLogger=true
-	beQuiet=${beQuiet:-false}
-	C=0
-	MODE=""
-	MAX=250
-	TIMEOUT=$MAX
+	#LOG="$DIR_CFG/$ME.log"
+	LOG="$TUI_DIR_LOG/connect.log"
+	PID="$TUI_DIR_TEMP/connect.pid"
+	FIFO="$TUI_DIR_TEMP/connect.ret"
+	tui-bol-root && \
+		DIR_SYSD="/etc/systemd/system" || \
+		DIR_SYSD="$HOME/.local/etc/systemd/system"
 #
 #	Functions
 #
@@ -104,7 +83,7 @@
 #
 #	Action
 #
-	tui-title "Copying Configuration"
+	tui-title "Copying Configuration (recomended)"
 #
 #	Display
 #
@@ -114,25 +93,22 @@
 	
 	MODE=$(tui-select "$A" "$B")
 	
-	for H in /home /Users /users;do
-		[ -d "$H" ] && \
-			users=$(ls --ignore=lost+found "$H") && \
-			break
-	done
+	users=$($LS --ignore=lost+found "$HOMEBASE")
 	tui-print -E "Which user is involved?"
 	usr=$(tui-select -a $users)
 	tui-status $? "Selected:" "$usr"
 	
 	case "$MODE" in
 	"$A")	SRC=/root
-		DST=$H/$usr
+		DST=$HOMEBASE/$usr
 		;;
-	"$B")	SRC=$H/$usr
+	"$B")	SRC=$HOMEBASE/$usr
 		DST=/root
 		;;
 	esac
 
 	t=.config/connect
-	
+	[ -L "$DST/$t" ] && rm "$DST/$t"
 	tui-cp "$SRC/$t" "$DST/.config"
-	
+	tui-status $? "Copied $SRC config to $DST"
+	sleep 0.5

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #shopt -s expand_alias
-#set -x
+#set -vx
 # ------------------------------------------------------------------------
 #
 # Copyright (c) 2015 by Simon Arjuna Erat, erat.simon@gmail.com
@@ -20,42 +20,31 @@
 # along with this program.  If not, see $DEFAULT_LICENSE_URL
 #
 # ------------------------------------------------------------------------
-	source tuirc 2>/dev/zero 1>/dev/zero ; printf "\r"
-	HOME="${HOME:-$(eval echo ~$USER)}"
+#
+# 	script_created:	2015.06.19
+# 	script_changed:	2015.12.29
 #
 #	Variables : Internals
 #
+	source tuirc
 	ME="${0##*/}"
-	ME_VER=0.5
-# 	script_created:	2015.06.19
-# 	script_changed:	2015.12.04
+	ME_VER=0.6
 #
-#	Variables : Dirs
-#
-	
-	if tui-bol-root
-	then	# Its root
-		DIR_CFG=${DIR_CFG:-/etc/connect}
-		DIR_TMP="${TMPDIR:-/tmp}"
-		DIR_LOG="${TUI_DIR_LOG}/connect"
-	else	# Its a regular user
-		DIR_CFG=${DIR_CFG:-$HOME/.config/connect}
-		DIR_TMP="$TUI_DIR_TEMP"
-		DIR_LOG="${TUI_DIR_USER_LOG}/connect"
-	fi
+#	Variables : Files & Folders
+#	
+	DIR_CFG="$HOME/.config/connect"
+	TMP="$TUI_FILE_TEMP"
+	# Files
+	CFG_ALL="$DIR_CFG/connect.conf"
+	CFG="$DIR_CFG/$ME.conf"
+	#LOG="$DIR_CFG/$ME.log"
+	LOG="$TUI_DIR_LOG/connect-$ME.log"
+	PID="$TUI_DIR_TEMP/connect-$ME.pid"
+	FIFO="$TUI_DIR_TEMP/connect-$ME.ret"
+	tui-bol-root && \
+		DIR_SYSD="/etc/systemd/system" || \
+		DIR_SYSD="$HOME/.local/etc/systemd/system"
 	DIR_WIFI="$DIR_CFG/wifi"
-	tui-bol-dir "$DIR_WIFI"
-	tui-bol-dir "$DIR_TMP"
-	tui-bol-dir "$DIR_LOG"
-#
-#	Variables : Files
-#
-	CFG="$DIR_CFG/connect.conf"
-	ERR="$DIR_LOG/$ME-errors.log"
-	FIFO="$DIR_TMP/$ME.ret"
-	LOG="$DIR_LOG/$ME.log"
-	PID="$DIR_TMP/$ME.pid"
-	TMP="$DIR_TMP/$ME.tmp"
 #
 #	Variables : Defaults
 #
@@ -64,7 +53,8 @@
 	beQuiet=${beQuiet:-false}
 	C=0
 	MODE="start"
-	MAX=250
+	MAX=250		# Represents ~30 secs
+	MAX=125		# Should be like ~15 secs 
 	TIMEOUT=$MAX
 #
 #	Variables : Resets
@@ -74,18 +64,6 @@
 	KEY=""
 	DEV=""
 	lbl=""
-#
-#	Environment Checks
-#
-	[ -p "$FIFO" ] && rm -f "$FIFO"
-	if [ ! -d "$DIR_WIFI" ]
-	then	# First time
-		for D in $DIR_{CFG,LOG,WIFI,TMP}
-		do	tui-bol-dir "$D"
-		done
-		touch "$CFG" "$ERR" "$LOG" #"$PID"
-	fi
-	source "$CFG"
 #
 #	Traps
 #
@@ -230,16 +208,20 @@
 	wifi_start() {
 	# Start wpa supplicant in background
 	#
-		wpa_supplicant -B -i"$WIFI" -c"$KEY" -f"$LOG" 1>>"$LOG" 2>>"$ERR" &
-		dhcpcd -B 1>>"$LOG" 2>>"$ERR"
-		ret=$?
-		return $ret
+		cat > "$TMP" <<-EOF
+		wpa_supplicant -B -i"$WIFI" -c"$KEY" -f"$LOG" 1>>"$LOG" 2>>"$LOG" &
+		dhcpcd -B 1>>"$LOG" 2>>"$LOG"
+		
+		EOF
+		tui-asroot "bash $TMP"
+		#ret=$?
+		#return $ret
 	}
 	wifi_ison() {
 	#
 	#
 		LC_ALL=C ip link show $WIFI | $GREP -q "state UP"
-		#return $?
+		return $?
 	}
 	wifi_stop() {
 	# Disconnect from connected spot
@@ -247,7 +229,9 @@
 		wifi_set_down
 		ret=$?
 		[ -d "/var/run/wpa_supplicant" ] && rm "/var/run/wpa_supplicant/"*
-		doLog "Connect $WIFI: Disconnected (ret=$ret)"
+		msg="Connect $WIFI: Disconnected (ret=$ret)"
+		doLog "$msg"
+		tui-status $ret "$msg"
 		return $ret
 	}
 	wifi_status() { 
@@ -256,7 +240,7 @@
 		AP=$(iw $WIFI link|awk '/SSID/ {print $2}')
 		p && \
 			AP="$WIFI_LAST ($AP)"|| \
-			AP="${AP:-<disconnected>}}"
+			AP="${AP:-<disconnected>}"
 		wifi_ison
 		ret=$?
 			
@@ -272,7 +256,7 @@
 		[ -z "$1" ] && \
 			return 1 || \
 			app="$1"
-		max=50
+		max=40
 		cancel_on=$max
 		while 	ps -ax | $GREP -v $GREP | $GREP -q "$app"
 			[ 1 -gt $cancel_on ] && \
@@ -285,13 +269,18 @@
 		if [ $cancel_on -lt 2 ]
 		then	# Keep killing it...
 			p=$(ps -ax | $GREP -v $GREP | $AWK -v app="$app" '/app/ {print $1}')
-			for tp in $p
-			do	for n in 2 3 9;do
+			for tp in $p;do
+				for n in 2 3 9;do
 					kill -$n $tp 2>/dev/zero
 					tui-status $? "Killed -$n $tp"  >&2
 				done
 			done
 		fi
+	}
+	wifi_list() { #
+	# List the wifi labels
+	#
+		$LS $DIR_CFG/wifi
 	}
 	wifi_restart() {
 	# Forcifly kill all the related applications running
@@ -304,26 +293,34 @@
 		#ps -ax | $GREP -e dhcpcd -e wpa -e wifi | $GREP -ve restart -ve iwl
 	}
 	write_service() { 
-	#
-	#
-		Servy=/etc/systemd/system/wifi-${KEY##*/}.service
+	# Writes a systemd service file
+	# Either in users home dir or in sysconf subdir
+		shortname="${KEY##*/}"
+		Servy="$DIR_SYSD/wifi-$shortname.service"
+		
+		if [ "$shortname" = "last" ]
+		then	description="Wifi-lastused"
+			keyname=""
+		else	description="Wifi-$shortname"
+			keyname="$shortname"
+		fi
 		cat > $Servy <<-SERVICE
 		[Unit]
-		Description=Wifi-${KEY##*/}
+		Description=$description
 		Documentation=https://github.com/sri-arjuna/connect/blob/master/README.md
-		After=local-fs.target
+		#After=local-fs.target
 		#After=home.mount
 		#RequiresMountsFor=/home/
 		
-		
 		[Service]
 		Type=oneshot
-		RemainAfterExit=yes
-		ExecStart=$BINDIR/connect wifi ${KEY##*/}
+		#RemainAfterExit=yes
+		ExecStart=$BINDIR/connect wifi $keyname
 		ExecStop=$BINDIR/connect wifi halt
 
 		[Install]
 		WantedBy=multi-user.target
+		After=local-fs.target
 		
 		SERVICE
 		
@@ -332,58 +329,34 @@
 			tui-asroot "systemctl enable wifi-${KEY##*/}" || \
 			tui-status 111 "To enable the service, call:" "systemctl enable wifi-${KEY##*/}"  >&2
 	}
-	copy_files() { #
-	# Copy configuration from user to system, or from system to user
-	#
-		set -x
-		# The source path from where to copy
-		S=$HOME/.config/connect
-		
-		# Get the target path
-		case "${UID:-0}" in
-		0)	# If root user has no /root, use the sysconf dir
-			[ -d $S ] || S=/etc/connect
-			
-			tui-printline -E "Please select the user to which you want to copy the settings."
-			for H in /home /Users;do
-				[ -d $H ] && \
-					usr=$(tui-select \
-						-a $($LS ${HOME}/.. | \
-						$GREP -v lost+found)
-					) && \
-					break
-			done
-			T=$H/$usr/.config/connect
-			;;
-		*)	# 'regular' user / everyone else
-			if [ -d /root ]
-			then	T=/root/.config/connect
-			else	T=/etc/connect
-			fi
-			;;
-		esac
-		
-		[ 0 -eq ${UID:-0} ] && \
-			tui-cp  $S/* $T || \
-			tui-asroot "tui-cp -f $S/* $T"
-		set +x
-	}
 	p() { 
 	# Pings google dns server
-	# 
+	# Returns true if it reaches it
 		ping -c 1 "8.8.8.8" 1>/dev/zero 2>/dev/zero && \
 			return 0 || \
 			return 1
 	}
-	if [ -z "$WIFI" ]
-	then	wifi_select_device
-	fi
+#
+#	Environment Checks
+#
+	# Create dirs if missing
+	tui-bol-dir "$DIR_CFG" "$TUI_DIR_TEMP" "$TUI_DIR_LOG" "$DIR_SYSD"
+	# Remove files
+	[ -p "$FIFO" ] && rm -f "$FIFO"
+	# Create files
+	touch "$FIFO" "$LOG" "$TMP"
+	# Load files or create basic config
+	[ -f "$CFG_ALL" ] && source "$CFG_ALL"
+	( [ ! -f "$CFG" ] || [ -z "$WIFI" ] ) && wifi_select_device
+	source "$CFG"
+	# If no argument is passed and connected, just show status
+	[ -z "$1" ] && p && set status
 #
 #	Catch args
 #
 	case "${1,,}" in
 	"-h"|"--help")
-		echo "Usage:	connect [-q] wifi [-q] [copy|serv [LABEL]] | LABEL|halt|status"
+		echo "Usage:	connect [-q] wifi [-q] [serv [LABEL]] LABEL|halt|status"
 		exit 99
 		;;
 	"--version")
@@ -401,15 +374,21 @@ There is NO WARRANTY, to the extent permitted by law.
 		stop|status) MODE="$1"	;;
 		esac
 		;;
-	""|new|halt|status|link|serv|copy)
+	""|new|halt|status|serv)
 		MODE="${1:-start}"
 		shift
-		[ -z "${MODE/start}" ] && set $WIFI_LAST
+		[ -z "${MODE/start}" ] && \
+			{ [ -z "$2" ] && set $WIFI_LAST || set "$2" ; }
 		;;
-	last)	set $WIFI_LAST
-		MODE=start
+	last)	[ -n "$WIFI_LAST" ] && \
+			set $WIFI_LAST && \
+			MODE=start || \
+			MODE=status
 		;;
-	*)	# Verify device is on
+	list)	tui-print -T "Available WIFI connections"
+		tui-list -n2 $(wifi_list) ; exit 0 ;;
+	*)	wifi_list | $GREP -q "$1" || exit 1
+		# Verify device is on
 		if ! wifi_bol_connected
 		then	wifi_set_up
 		fi
@@ -419,23 +398,10 @@ There is NO WARRANTY, to the extent permitted by law.
 #
 #	Action & Display
 #
-	$beQuiet || tui-title "Wifi ($ME_VER) ($WIFI) ${MODE^}"
+	$beQuiet || tui-title "Wifi ($ME_VER) ${MODE^}"
 	[ start = "$1" ] && p && MODE=skip
 	#[ last = "$1" ] && p && MODE=skip
 	case "$MODE" in
-	link)	tui-echo "This will link /home/$USER/.config/connect to /root/.config/connect."
-		tui-yesno "Continue?" || exit 0
-		[ -d "/root/.config/connect" ] && mv "/root/.config/connect" "/root/.config/connect.old.$(date +'%F_%T')"
-		ln -s "/home/$USER/.config/connect" "/root/.config/connect"
-		;;
-	copy)	#S=/home/$USER/.config/connect/wifi
-		#T=/root/.config/connect/wifi
-		#tui-echo "This will copy $S/* to $T."
-		#tui-yesno "Continue?" || exit 0
-		#[ -L "$T" ] && rm -f "$T" && mkdir "$T"
-		#cp -ar $S/* $T
-		copy_files
-		;;
 	new)	wifi_new
 		ret=$?
 		# Connect now?
@@ -446,42 +412,65 @@ There is NO WARRANTY, to the extent permitted by law.
 		exit $ret
 		;;
 	start)	# Default behaviour
+		if [ "$WIFI_LAST" = "$1" ] && wifi_bol_connected
+		then	wifi_status
+			exit $?
+		fi
 		NEW="${1/new/}$lbl"
 		[ -z "${NEW/last}" ] && NEW="$WIFI_LAST"
 		KEY="$DIR_WIFI/$NEW"
-		[ serv = "${2:0:4}" ] && write_service && exit 0
+		[ serv = "${2:0:4}" ] && { write_service ; exit $? ; } 
+		
+		
+		
+		
+		
+		
+		#shown_prog=false
 		if [ ! -z "$RUNLEVEL" ]
 		then	wifi_start &
 		else	wifi_start &
 			# If there is no ping from google dns, be idle and fill the bar...
-			while ! p && [ $TIMEOUT -gt 1 ]
-			do	tui-progress -b -m $MAX -c $(( $MAX - $TIMEOUT )) "Connecting to: ${KEY##*/}..." >&2
+			while ! p && [ $TIMEOUT -gt 1 ];do
+				tui-progress -b -m $MAX -c $(( $MAX - $TIMEOUT )) "Connecting to: ${KEY##*/}..." >&2
 				TIMEOUT=$(( $TIMEOUT - 1 ))
 				sleep 0.07
 			done
 			[ "$TIMEOUT" -gt 2 ] && tui-conf-set "$CFG" WIFI_LAST "${NEW}"
-			RET="$?"
+			p ; RET="$?"
+			printf "\n"
 		fi
 		;;
-	halt)
-		wifi_restart
+	halt)	MSG="Everything stoped"
+		printf '%s\n' \
+			"WIFI=$WIFI" \
+			"GREP=$GREP" \
+			"AWK=$AWK" > "$TMP"
+		for func in wifi_set_up  wifi_set_down  wifi_kill_app wifi_restart ;do
+			LC_ALL=C type $func | $GREP -v  "is a function" >> "$TMP"
+		done
+		echo wifi_restart >> $TMP
+		tui-asroot "bash $TMP"
+		RET=$?
+		rm "$TMP"
+		;;
+	stop)	MSG="Disconnected from $1"
+		wifi_stop
 		RET=$?
 		;;
-	stop)	wifi_stop
-		RET=$?
-		;;
-	serv)	#echo "$1 :: $2"
-		[ -z "$1" ] && \
+	serv)	[ -z "$1" ] && \
 			tui-printf -S 1 "Must provide a LABEL!" && \
 			exit 1
 		KEY="$1"
 		write_service "$KEY"
 		exit $?
 		;;
-	status)	wifi_status
+	status)	MSG="Status"
+		wifi_status
 		RET=$?
 		;;
-	skip)	RET=4
+	skip)	MSG="Skipped.. $@"
+		RET=4
 		;;
 	esac
 	exit $RET

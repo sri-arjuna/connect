@@ -1,0 +1,22 @@
+#
+#	Project Info
+#
+	APP_NAME=connect
+	APP_VER=0.4.2
+	doMakefile=true
+	doTUI=true
+#
+#	Content
+#
+	BINDIR=bin/connect
+	DOCDIR=docs/[CR]*
+	MAN1DIR=docs/man/$APP_NAME.1
+	DOCS[info]=docs/info/$APP_NAME.texi
+	INFODIR=docs/info/*info
+	DATADIR=./to
+#
+#	Additional tasks
+#
+	MAKE[0]="bin/$APP_NAME.tpl"
+	MAKE_CREATES=bin/$APP_NAME
+	DISTCLEAN[0]=$MAKE_CREATES
