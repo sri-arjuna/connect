@@ -24,7 +24,7 @@
 #	Variables : Internals
 #
 	ME="${0##*/}"
-	ME_VER=0.3.1
+	ME_VER=0.3.3
 #
 #	Variables : Dirs
 #
@@ -49,6 +49,7 @@
 	FIFO="$DIR_TMP/$ME.ret"
 	LOG="$DIR_LOG/$ME.log"
 	PID="$DIR_TMP/$ME.pid"
+	TMP="$DIR_TMP/$ME.tmp"
 #
 #	Variables : Resets
 #
@@ -164,6 +165,30 @@
 		fi
 		tui-conf-set "$CONF" CRED "${useCRED:0:2}"
 	}
+	lease_this() { # LABEL
+	# Disconnect current LABEL
+	#
+		[ -z "$1" ] && return 1
+		source "$DIR_NAS/${1}.conf" || return 1
+		#set -x
+		tui-asroot "LC_ALL=C umount $MP" 2>"$TMP" 1>&2
+		RET=$?
+		if [ $RET -eq 0 ]
+		then	tui-print -S 0 "$MP: Disconnected"
+		else	output="$(<$TMP)"
+			if [ -n "$output" ]
+			then	output="${output//umount}"
+				out="$(echo ${output:1})"
+				echo "$out" | $GREP -q "not mounted" && \
+					RET=4 || RET=1
+			else	out="$(echo ${output:-$MP: Disconnected})"
+				RET=0
+			fi
+			tui-print -S $RET "$out"
+		fi
+		#set +x
+		return $RET
+	}
 	add_cred() { # IP
 	#
 	#
@@ -199,7 +224,7 @@
 			EOF
 			rm "$TUI_FILE_TEMP.pw"
 			tui-echo
-			tui-cat "$CRED"
+			tui-printfile "$CRED"
 			chmod 400 "$CRED"
 
 			while ! tui-yesno "Are these values correct?"
@@ -211,7 +236,7 @@
 			tui-conf-set -v "$CONF" CRED "$CRED"
 		return 0
 	}
-	p() { ping -c 1 "$1" 1>/dev/zero 2>/dev/zero ; }
+	p() { ping -c 1 "${1:-8.8.8.8}" 1>/dev/zero 2>/dev/zero ; }
 #
 #	Action & Display
 #
@@ -230,37 +255,59 @@
 		add_new
 	fi
 	
-	if [ "-h" = "${1,,}" ] || [ "--help" = "${1,,}" ]
-	then	echo "Usage: 	connect nas [new|LABEL]"
+	case "${1,,}" in
+	-h|--help)
+		echo "Usage: 	connect nas [list|new|del] [LABEL]"
 		exit 99
-	elif [ "new" = "${1,,}" ]
-	then	add_new
-	elif [ -z "$1" ]
-	then	# nothing passed, connect to only found or list existing connections
+		;;
+	list)	tui-list -1n $(list_LABEL)
+		exit $?
+		 ;;
+	"")	# nothing passed, connect to only found or list existing connections
 		found=($(list_LABEL))
-		if [ -z "$found" ]
+		if [ -z "${found[@]}" ]
 		then	add_new
 			found=($(cd "$DIR_NAS";ls))
 			LABEL=$(tui-select -a ${found[@]})
 		else	LABEL=$(tui-select -a ${found[@]})
 		fi
-	else	for arg in "${@}"
+		;;
+	new)	add_new	;;
+	lease)	[ -z "$2" ] && \
+			tui-print -S 1 "Must pass a LABEL to lease!" && \
+			exit 1
+		lease_this "$2"
+		exit $?
+		;;
+	lease-all)
+		found=$(list_LABEL)
+		for f in $found;do
+			#set -x
+			source $DIR_NAS/$f
+			lease_this $label
+			#set +x
+		done
+		exit $?
+		;;
+	*)	for arg in "${@}"
 		do	if [ -f "$DIR_CFG/nas/$arg.conf" ]
 			then	LABEL="$arg" 
-				
-			else 	tui-printf -S $? "Configuration for \"$arg\" not found."
+			
+			else 	tui-print -S $? "Configuration for \"$arg\" not found."
 				exit $?
 			fi
 		done
-	fi
+		;;
+	esac
 
+	#set -x
 	if [ "$LABEL" = "${LABEL##*/}" ]
-	then	LABEL="$DIR_NAS/$LABEL"
+	then	LABEL="$DIR_NAS/$LABEL.conf"
 	fi
 	
-#	set -x
+	#set +x
 	
-	source "${LABEL}.conf"
+	source "${LABEL}"
 	if [ -z "$(echo ${CRED/\.\/})" ]
 	then	# No cred file defined for this share
 		add_cred "$IP"
@@ -274,21 +321,21 @@
 	cmd="mount -t cifs //$IP/$SHARE $MP -o _netdev,rw,credentials=$DIR_NAS/$CRED,sec=ntlmv2,fsc"
 	# Check if device is even up
 	! p "$IP"  && \
-		tui-printf -S 1 "Device is not up, please power it up!" && \
+		tui-print -S 1 "Device is not up, please power it up!" && \
 		exit 1
 	if $GREP -q $MP /etc/mtab
 	then	tui-status 4 "\"${LABEL##*/}\" is already mounted at: $MP"
 		exit 0
 	fi
-	tui-echo "To mount \"$label\"" #, please provide $USER password:"
+	#tui-print -E "To mount \"$label\"" #, please provide $USER password:"
 	doLog "Starting: $cmd"
 #set -x
 	touch "$TUI_FILE_TEMP"
-	msg_prior="Please provide password for $USER:"
-	msg_prior="$msg_prior"
-	tui-printf "$msg_prior";printf "\033[$(( 6 + ${#msg_prior} ))G"
-	tui-asroot  "$cmd" 2>"$TUI_FILE_TEMP" 1>&2
-	tui-cat "$TUI_FILE_TEMP"
+	msg_prior="To mount \"$label\", please provide password for $USER:"
+	#msg_prior="$msg_prior"
+	#tui-print "$msg_prior";printf "\033[$(( 6 + ${#msg_prior} ))G"
+	tui-asroot -m "$msg_prior" "$cmd" 1>"$TUI_FILE_TEMP" #1>&2
+	#tui-printfile "$TUI_FILE_TEMP"
 	$GREP -q error "$TUI_FILE_TEMP" && \
 		RET=1 || RET=0
 	#RET=$?
